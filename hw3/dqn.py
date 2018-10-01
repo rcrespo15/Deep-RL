@@ -157,8 +157,38 @@ class QLearner(object):
     # Older versions of TensorFlow may require using "VARIABLES" instead of "GLOBAL_VARIABLES"
     # Tip: use huber_loss (from dqn_utils) instead of squared error when defining self.total_error
     ######
-
+    #<q1>
     # YOUR CODE HERE
+    # uppercase =  matrix, other represents vectors or scalars
+    # target function is represente as y_i
+    # Equation:
+    # E = 1/2 * //Q_phi - y_i//2
+
+    #compute q_phi
+    # Q_phi will return the estimated Q value at each state and action
+    self.Q_phi = q_func(obs_t_float, self.num_actions, scope="q_func", reuse=False)
+    #need to revise how q_phi comes out.
+    #1) if Q_phi -> rewards at each of the next steps then need to do a
+    #   tf.reduce_sum
+    #1.1) Q_phi -> gives the Q value for all the steps in the trajectory then
+    #   it is a vector and no need to do any cleaning or computations
+    #2) if Q_phi -> Matrix containing Q values for all actions possible then
+    #   need to tf.reduce_max to pick the best action
+    # different
+    self.q_phi = tf.reduce_sum(Q_phi,axis=1)
+
+    #compute target
+    #y_i = rj + gamma * max,aj (Q_phi_p(sj_p,aj_p)) where Q_phi' is the target network
+    #compute the Q values
+    self.Q_phi_p = q_func(obs_tp1_float, self.num_actions, scope="q_targ_func", reuse=False)
+    rj = self.rew_t_ph
+    gamma = self.gamma
+    self.q_phi_p_max = tf.reduce_max(Q_phi_p,axis=1)
+    self.y_i = rj + gamma * self.q_phi_p_max
+
+    self.total_error = huber_loss(self.q_phi-self.y_i)
+    q_func_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='q_func')
+    target_q_func_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='q_targ_func')
 
     ######
 
@@ -230,6 +260,34 @@ class QLearner(object):
 
     # YOUR CODE HERE
 
+    #Part1. Store observation to buffer. Create a variable to store index
+    self.obs_index = self.replay_buffer.store_frame(self.last_obs)
+
+    #Part2. Define function to obtain "best" action
+    self.choose_action = tf.argmax(self.Q_phi)
+
+    #Part7. Include condition for situation in which you are at the first step
+    # and include epsilon greedy exploration
+    self.generate_action = 0
+    if replay_buffer.can_sample(self.batch_size) and random.random()>self.exploration:
+        #Part3. Use the replay buffer function called encode_recent_observation
+        self.encoded_observation = replay_buffer.encode_recent_observation()
+
+        #Part4. Obtain Action. Pass encoded observation through the network
+        self.generate_action =  session.run(self.choose_action, feed_dict={self.obs_t_ph: self.encoded_observation})
+    else:
+        self.generate_action = random.choice(self.env.action_space)
+
+    #Part5. Call env.step(action) to get obs,reward,done,info
+    obs, reward, done, info = env.step(self.generate_action)
+
+    #Part6. Call store_effect to store variables
+    self.replay_buffer.store_effect(self.obs_index,self.generate_action,reward,
+    done)
+    obs = env.reset()
+
+
+
   def update_model(self):
     ### 3. Perform experience replay and train the network.
     # note that this is only done if the replay buffer contains enough samples
@@ -273,7 +331,7 @@ class QLearner(object):
       # variable self.num_param_updates useful for this (it was initialized to 0)
       #####
 
-      # YOUR CODE HERE
+      # 3.a
 
       self.num_param_updates += 1
 
@@ -314,4 +372,3 @@ def learn(*args, **kwargs):
     # observation
     alg.update_model()
     alg.log_progress()
-
