@@ -304,7 +304,7 @@ class ReplayBuffer(object):
     def store_frame(self, frame):
         """Store a single frame in the buffer at the next available index, overwriting
         old frames if necessary.
-        
+
         Parameters
         ----------
         frame: np.array
