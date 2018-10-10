@@ -12,6 +12,7 @@ import os
 import time
 import inspect
 from multiprocessing import Process
+import pdb
 
 #============================================================================================#
 # Utilities
@@ -39,8 +40,8 @@ def build_mlp(input_placeholder, output_size, scope, n_layers, size, activation=
     output_placeholder = input_placeholder
     with tf.variable_scope(scope):
         for i in range(n_layers):
-            output_placeholder = tf.layers.dense(inputs=nn, units=size, activation=activation)
-        output_placeholder = tf.layers.dense(inputs=nn, units=output_size, activation=output_activation)
+            output_placeholder = tf.layers.dense(inputs=output_placeholder, units=size, activation=activation)
+        output_placeholder = tf.layers.dense(inputs=output_placeholder, units=output_size, activation=output_activation)
     return output_placeholder
 
 def pathlength(path):
@@ -129,7 +130,6 @@ class Agent(object):
                 Pass in self.n_layers for the 'n_layers' argument, and
                 pass in self.size for the 'size' argument.
         """
-        raise NotImplementedError
         if self.discrete:
             sy_logits_na = build_mlp(sy_ob_no, self.ac_dim, "scope",
             n_layers=self.n_layers, size=self.size, activation=tf.tanh,
@@ -167,7 +167,6 @@ class Agent(object):
 
                  This reduces the problem to just sampling z. (Hint: use tf.random_normal!)
         """
-        raise NotImplementedError
         if self.discrete:
             sy_logits_na = policy_parameters
             sy_sampled_ac = tf.multinomial(sy_logits_na,1)
@@ -177,6 +176,7 @@ class Agent(object):
             sy_mean, sy_logstd = policy_parameters
             normal = tf.random_normal(tf.shape(sy_mean))
             sy_sampled_ac = sy_mean + normal*(tf.exp(sy_logstd))
+
         return sy_sampled_ac
 
     def get_log_prob(self, policy_parameters, sy_ac_na):
@@ -200,7 +200,7 @@ class Agent(object):
                 For the discrete case, use the log probability under a categorical distribution.
                 For the continuous case, use the log probability under a multivariate gaussian.
         """
-        raise NotImplementedError
+
         if self.discrete:
             sy_logits_na = policy_parameters
             sy_logprob_n = -tf.nn.sparse_softmax_cross_entropy_with_logits(labels=sy_ac_na,logits=sy_logits_na)
@@ -245,7 +245,7 @@ class Agent(object):
         # This is used in the loss function.
         self.sy_logprob_n = self.get_log_prob(self.policy_parameters, self.sy_ac_na)
 
-        actor_loss = tf.reduce_sum(-self.sy_logprob_n * self.sy_adv_n)
+        actor_loss = -tf.reduce_sum(self.sy_logprob_n * self.sy_adv_n)
         self.actor_update_op = tf.train.AdamOptimizer(self.learning_rate).minimize(actor_loss)
 
         # define the critic
@@ -258,6 +258,7 @@ class Agent(object):
         self.sy_target_n = tf.placeholder(shape=[None], name="critic_target", dtype=tf.float32)
         self.critic_loss = tf.losses.mean_squared_error(self.sy_target_n, self.critic_prediction)
         self.critic_update_op = tf.train.AdamOptimizer(self.learning_rate).minimize(self.critic_loss)
+        self.compute_grad = tf.train.AdamOptimizer(self.learning_rate).compute_gradients(self.critic_loss)
 
     def sample_trajectories(self, itr, env):
         # Collect paths until we have enough timesteps
@@ -286,20 +287,18 @@ class Agent(object):
             acs.append(ac)
             ob, rew, done, _ = env.step(ac)
             # add the observation after taking a step to next_obs
-
             # YOUR CODE HERE
-            raise NotImplementedError
             rewards.append(rew)
+            next_obs.append(ob)
             steps += 1
             # If the episode ended, the corresponding terminal value is 1
             # otherwise, it is 0
-
             # YOUR CODE HERE
             if done or steps > self.max_path_length:
-                raise NotImplementedError
+                terminals.append(1)
                 break
             else:
-                raise NotImplementedError
+                terminals.append(0)
         path = {"observation" : np.array(obs, dtype=np.float32),
                 "reward" : np.array(rewards, dtype=np.float32),
                 "action" : np.array(acs, dtype=np.float32),
@@ -308,6 +307,7 @@ class Agent(object):
         return path
 
     def estimate_advantage(self, ob_no, next_ob_no, re_n, terminal_n):
+        print("--------------------estimate_advantage_in------------------------------")
         """
             Estimates the advantage function value for each timestep.
 
@@ -333,9 +333,17 @@ class Agent(object):
         # Note: don't forget to use terminal_n to cut off the V(s') term when computing Q(s, a)
         # otherwise the values will grow without bound.
         # YOUR CODE HERE
-        raise NotImplementedError
-        adv_n = None
-
+        #First, estimate the Q value as Q(s, a) = r(s, a) + gamma*V(s')
+        Q = re_n + (1-terminal_n)*self.gamma*self.sess.run(
+                    self.critic_prediction,
+                    feed_dict={
+                    self.sy_ob_no:next_ob_no
+                    })
+        V = self.sess.run(self.critic_prediction,
+            feed_dict = {
+            self.sy_ob_no:ob_no
+            })
+        adv_n = Q - V
         if self.normalize_advantages:
             #YOUR CODE FROM HW2
             adv_mean = np.mean(adv_n)
@@ -369,7 +377,36 @@ class Agent(object):
         # Note: don't forget to use terminal_n to cut off the V(s') term when computing the target
         # otherwise the values will grow without bound.
         # YOUR CODE HERE
-        raise NotImplementedError
+        # target_value = re_n + (1-terminal_n)*self.gamma*self.sess.run(
+        #             self.critic_prediction,
+        #             feed_dict={
+        #             self.sy_ob_no:next_ob_no
+        #             })
+        n=self.num_grad_steps_per_target_update#*self.num_target_updates
+        # self.sess.run(self.compute_grad,
+        #                 feed_dict={
+        #                 self.sy_ob_no: ob_no,
+        #                 self.sy_target_n:target_value
+        #                 })
+        for i in range(n):
+            target_value = re_n + (1-terminal_n)*self.gamma*self.sess.run(
+                        self.critic_prediction,
+                        feed_dict={
+                        self.sy_ob_no:next_ob_no
+                        })
+
+            self.sess.run(self.critic_update_op,
+                        feed_dict={
+                        self.sy_ob_no: ob_no,
+                        self.sy_target_n:target_value
+                        })
+        #
+        #     self.sess.run(self.compute_grad,
+        #                 feed_dict={
+        #                 self.sy_ob_no: ob_no,
+        #                 self.sy_target_n:target_value
+        #                 })
+
 
     def update_actor(self, ob_no, ac_na, adv_n):
         """
@@ -491,7 +528,11 @@ def train_AC(
         # (2) use the updated critic to compute the advantage by, calling agent.estimate_advantage
         # (3) use the estimated advantage values to update the actor, by calling agent.update_actor
         # YOUR CODE HERE
-        raise NotImplementedError
+        update_critic_in = range(0,n_iter,int(n_iter/num_target_updates))
+        if itr in update_critic_in:
+            agent.update_critic(ob_no, next_ob_no, re_n, terminal_n)
+        adv_n = agent.estimate_advantage(ob_no, next_ob_no, re_n, terminal_n)
+        agent.update_actor(ob_no, ac_na, adv_n)
 
         # Log diagnostics
         returns = [path["reward"].sum() for path in paths]

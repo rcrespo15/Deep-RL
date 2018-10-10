@@ -49,7 +49,6 @@ def build_mlp(input_placeholder, output_size, scope, n_layers, size, activation=
             nn = tf.layers.dense(inputs=nn, units=size, activation=activation)
         nn = tf.layers.dense(inputs=nn, units=output_size, activation=output_activation)
         return nn
-    print("build_mlp")
 
 def pathlength(path):
     return len(path["reward"])
@@ -84,20 +83,14 @@ class Agent(object):
         self.reward_to_go = estimate_return_args['reward_to_go']
         self.nn_baseline = estimate_return_args['nn_baseline']
         self.normalize_advantages = estimate_return_args['normalize_advantages']
-        print("inside_agent")
 
     def init_tf_sess(self):
-        print("inside")
         tf_config = tf.ConfigProto(inter_op_parallelism_threads=1, intra_op_parallelism_threads=1)
-        print("inside2")
         self.sess = tf.Session(config=tf_config)
-        print("inside3")
         self.sess.__enter__() # equivalent to `with self.sess:`
-        print("inside4")
         #self.sess.run(tf.global_variables_initializer())
         #tf.global_variables_initializer().run() #pylint: disable=E1101
         self.sess.run(tf.global_variables_initializer())
-        print ("init_tf_sess")
 
     #========================================================================================#
     #                           ----------PROBLEM 2----------
@@ -113,7 +106,7 @@ class Agent(object):
                 sy_ac_na: placeholder for actions
                 sy_adv_n: placeholder for advantages
         """
-        #raise NotImplementedError
+
         sy_ob_no = tf.placeholder(shape=[None, self.ob_dim], name="ob", dtype=tf.float32)
         if self.discrete:
             sy_ac_na = tf.placeholder(shape=[None], name="ac", dtype=tf.int32)
@@ -122,7 +115,6 @@ class Agent(object):
         # YOUR CODE HERE
         sy_adv_n = tf.placeholder(shape=[None], name="adv", dtype=tf.float32)
         return sy_ob_no, sy_ac_na, sy_adv_n
-        print("define_placeholders")
 
 
     #========================================================================================#
@@ -153,23 +145,17 @@ class Agent(object):
                 Pass in self.n_layers for the 'n_layers' argument, and
                 pass in self.size for the 'size' argument.
         """
-        #raise NotImplementedError
         if self.discrete:
-            # YOUR_CODE_HERE
             sy_logits_na = build_mlp(sy_ob_no, self.ac_dim, "scope",
             n_layers=self.n_layers, size=self.size, activation=tf.tanh,
             output_activation=None)
             return sy_logits_na
         else:
-            # YOUR_CODE_HERE
-            # Vector with the output of the build_mlp function
             sy_mean = build_mlp(sy_ob_no, self.ac_dim, "scope", n_layers=self.n_layers,
             size=self.size, activation=tf.tanh, output_activation=None)
 
             sy_logstd = tf.get_variable("logstd", shape = [self.ac_dim], dtype=tf.float32, initializer=tf.zeros_initializer)
             return (sy_mean, sy_logstd)
-
-        print("policy_forward_pass")
 
     #========================================================================================#
     #                           ----------PROBLEM 2----------
@@ -210,18 +196,13 @@ class Agent(object):
                 #           shape should be a vector?? </q>
 
             sy_sampled_ac = tf.multinomial(sy_logits_na,1)
-            # sy_sampled_ac = tf.squeeze(sy_sampled_ac,axis = [1])
-            # tf.distribution.Categorica(logits=sy_logits_na)
             categorical = tf.distributions.Categorical(logits=sy_logits_na)
             sy_sampled_ac = tf.squeeze(categorical.sample(1),axis = [0])
 
         else:
             sy_mean, sy_logstd = policy_parameters
-            # YOUR_CODE_HERE
-            z = tf.random_normal(tf.shape(sy_mean))
-            sy_sampled_ac = sy_mean + z*(tf.exp(sy_logstd))
-            # sy_sampled_ac = tfp.distributions.MultivariateNormalDiag(loc = sy_mean, scale_diag=tf.exp(sy_logstd))
-        print("sample action")
+            normal = tf.random_normal(tf.shape(sy_mean))
+            sy_sampled_ac = sy_mean + normal*(tf.exp(sy_logstd))
         return sy_sampled_ac
 
     #========================================================================================#
@@ -259,7 +240,6 @@ class Agent(object):
             sy_logprob_n = -tf.nn.sparse_softmax_cross_entropy_with_logits(labels=sy_ac_na,logits=sy_logits_na)
         else:
             sy_mean, sy_logstd = policy_parameters
-            # YOUR_CODE_HERE
             # I tried using different tf funtcionts linke tf.contrib.distribution.MultivariateNormalDiag
             # without any results, thus the implementation below is the implementation of the
             # formulat for a gaussian distribution. Neglecting the constant term (1/sqrt(2.Pi.sigma^2))
@@ -267,7 +247,6 @@ class Agent(object):
             x = tf.contrib.distributions.MultivariateNormalDiag(loc=sy_mean,
                 scale_diag=tf.exp(sy_logstd))
             sy_logprob_n = x.log_prob(sy_ac_na)
-        print("get_log_prob")
         return sy_logprob_n
 
     def build_computation_graph(self):
@@ -310,7 +289,6 @@ class Agent(object):
         #========================================================================================#
         self.loss = -tf.reduce_mean(self.sy_logprob_n * self.sy_adv_n)
         self.update_op = tf.train.AdamOptimizer(self.learning_rate).minimize(self.loss)
-        print("computation_graph")
 
         #========================================================================================#
         #                           ----------PROBLEM 6----------
@@ -371,7 +349,6 @@ class Agent(object):
                 "reward" : np.array(rewards, dtype=np.float32),
                 "action" : np.array(acs, dtype=np.float32)}
         return path
-        print("sample_trajectory")
 
     #====================================================================================#
     #                           ----------PROBLEM 3----------
