@@ -81,16 +81,23 @@ class ModelBasedRL(object):
             (d) Keep track of the loss values by appending them to the losses array
         """
         timeit.start('train policy')
-
+        print("ModelBasedRl - before train policy")
         losses = []
         ### PROBLEM 1
         ### YOUR CODE HERE
-        raise NotImplementedError
+        for _ in range(self._training_epochs):
+            for i in dataset.random_iterator(self._training_batch_size):
+                states,action,next_states,_,_ = i
+                loss = self._policy.train_step(states, action, next_states)
+                losses.append(loss)
+
+
 
         logger.record_tabular('TrainingLossStart', losses[0])
         logger.record_tabular('TrainingLossFinal', losses[-1])
 
         timeit.stop('train policy')
+        print("ModelBasedRl - after train policy")
 
     def _log(self, dataset):
         timeit.stop('total')
@@ -115,9 +122,11 @@ class ModelBasedRL(object):
                   predicted states and saves these to the experiment's folder. You do not need to modify this code.
         """
         logger.info('Training policy....')
+        print("ModelBasedRl - before run_q1")
         ### PROBLEM 1
         ### YOUR CODE HERE
-        raise NotImplementedError
+        self._train_policy(self._random_dataset)
+
 
         logger.info('Evaluating predictions...')
         for r_num, (states, actions, _, _, _) in enumerate(self._random_dataset.rollout_iterator()):
@@ -125,11 +134,14 @@ class ModelBasedRL(object):
 
             ### PROBLEM 1
             ### YOUR CODE HERE
-            raise NotImplementedError
+            pred_states.append(self._policy.predict(states[0],actions[0]))
+            print(states[0],actions[0])
+            for i in range(len(states)-1):
+                pred_states.append(self._policy.predict(pred_states[i],actions[i+1]))
 
+            pred_states
             states = np.asarray(states)
             pred_states = np.asarray(pred_states)
-
             state_dim = states.shape[1]
             rows = int(np.sqrt(state_dim))
             cols = state_dim // rows
@@ -144,6 +156,7 @@ class ModelBasedRL(object):
             f.savefig(os.path.join(logger.dir, 'prediction_{0:03d}.jpg'.format(r_num)), bbox_inches='tight')
 
         logger.info('All plots saved to folder')
+        print("ModelBasedRl - after run_q1")
 
     def run_q2(self):
         """
@@ -155,12 +168,11 @@ class ModelBasedRL(object):
         logger.info('Training policy....')
         ### PROBLEM 2
         ### YOUR CODE HERE
-        raise NotImplementedError
+        self._train_policy(self._random_dataset)
 
         logger.info('Evaluating policy...')
         ### PROBLEM 2
-        ### YOUR CODE HERE
-        raise NotImplementedError
+        eval_dataset=self._gather_rollouts(self._policy, num_init_random_rollouts)
 
         logger.info('Trained policy')
         self._log(eval_dataset)
@@ -184,16 +196,16 @@ class ModelBasedRL(object):
             ### PROBLEM 3
             ### YOUR CODE HERE
             logger.info('Training policy...')
-            raise NotImplementedError
+            self._train_policy(self._random_dataset)
 
             ### PROBLEM 3
             ### YOUR CODE HERE
             logger.info('Gathering rollouts...')
-            raise NotImplementedError
+            gather_rollouts=self._gather_rollouts(self._policy, self._num_onpolicy_rollouts)
 
             ### PROBLEM 3
             ### YOUR CODE HERE
             logger.info('Appending dataset...')
-            raise NotImplementedError
+            dataset.append(gather_rollouts)
 
             self._log(new_dataset)
