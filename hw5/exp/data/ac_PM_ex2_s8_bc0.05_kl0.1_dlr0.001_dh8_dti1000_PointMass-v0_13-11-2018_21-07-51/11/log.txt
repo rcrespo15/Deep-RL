@@ -1,0 +1,2 @@
+Time	Iteration	AverageReturn	StdReturn	MaxReturn	MinReturn	EpLenMean	EpLenStd	Unmodified Rewards Mean	Unmodified Rewards Std	Modified Rewards Mean	Modified Rewards Std	Log Likelihood Mean	Log Likelihood Std	KL Divergence Mean	KL Divergence Std	Negative ELBo	TimestepsThisBatch	TimestepsSoFar
+33.232996702194214	0	-0.42860222	0.087410815	-0.25177664	-0.6315052	21.0	0.0	-0.020409627	-0.020409627	-0.020811953	-0.020811953	-0.6757293	0.26946375	0.06970194	0.07316361	-0.7454313	1008	1008

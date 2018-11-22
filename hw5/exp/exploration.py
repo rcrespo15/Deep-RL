@@ -1,3 +1,4 @@
+from __future__ import division
 import copy
 import numpy as np
 import tensorflow as tf
@@ -26,6 +27,15 @@ class Exploration(object):
     def compute_reward_bonus(self, states):
         # You do not need to do anything here
         raise NotImplementedError
+        #################
+        ### Problem 1 ###
+        #################
+        # Should return a function of the histogram
+        # N(st)^-1/2
+        # n,d = states.shape
+        # reward_bonus = np.ones(n)
+        #
+        # return (self.bonus_coeff*reward_bonus)
 
     def modify_reward(self, rewards, states):
         """
@@ -40,9 +50,11 @@ class Exploration(object):
                 bonus and then modify the rewards with the bonus
                 and store that in new_rewards, which you will return
         """
-        raise NotImplementedError
-        bonus = None
-        new_rewards = None
+        #################
+        ### Problem 1 ###
+        #################
+        bonus = self.compute_reward_bonus(states)
+        new_rewards = rewards + self.bonus_coeff*bonus
         return new_rewards
 
 class DiscreteExploration(Exploration):
@@ -57,7 +69,16 @@ class DiscreteExploration(Exploration):
             args:
                 states: (bsize, ob_dim)
         """
-        raise NotImplementedError
+        #################
+        ### Problem 1 ###
+        #################
+        # self.states_visited, self.count_states_visited = np.unique(states,axis=0,return_counts=True)
+        n,d = states.shape
+        for i in range(n):
+            self.density_model.update_count(states[i,:],1)
+
+        # self.count_states_visited = self.get_count(states)
+        # self.prob_states_visited = self.density_model.get_prob(states)
 
     def bonus_function(self, count):
         """
@@ -67,7 +88,15 @@ class DiscreteExploration(Exploration):
             args:
                 count: np array (bsize)
         """
-        raise NotImplementedError
+        #################
+        ### Problem 1 ###
+        #################
+        # input =
+        #       count - (bsize)
+        # return =
+        #       bonus_value = the value for each state in the count
+        bonus_value = np.true_divide(1,count)**(1/2)
+        return bonus_value
 
     def compute_reward_bonus(self, states):
         """
@@ -77,8 +106,21 @@ class DiscreteExploration(Exploration):
             args:
                 states: (bsize, ob_dim)
         """
-        count = raise NotImplementedError
-        bonus = raise NotImplementedError
+
+        n,d = states.shape
+
+        # 1. fit a model
+        # self.fit_density_model(states)
+
+        # 2. use the model to compute the counts of times each state is visited
+        counts = self.density_model.get_count(states)
+        # for i in range(n):
+        #     t = np.where((self.states_visited==states[i,:]).all(axis=1))
+        #     counts.append(self.count_states_visited[t[0][0]])
+
+        # print(counts)
+        # 3. Pass the counts arguement to obtain a bonus function for each state
+        bonus = self.bonus_function(counts)
         return bonus
 
 
@@ -99,19 +141,19 @@ class ContinuousExploration(Exploration):
             args:
                 prob: np array (bsize,)
         """
-        raise NotImplementedError
+        bonus_values = self.bonus_coeff*(-1*np.log(prob))
+        return(bonus_values)
 
     def compute_reward_bonus(self, states):
         """
             ### PROBLEM 2
             ### YOUR CODE HERE
-        
+
             args:
                 states: (bsize, ob_dim)
         """
-        raise NotImplementedError
-        prob = None
-        bonus = None
+        prob = self.density_model.get_prob(states)
+        bonus = self.bonus_function(prob)
         return bonus
 
 
@@ -132,7 +174,7 @@ class ExemplarExploration(ContinuousExploration):
     def __init__(self, density_model, bonus_coeff, train_iters, bsize, replay_size):
         super(ExemplarExploration, self).__init__(density_model, bonus_coeff, replay_size)
         self.train_iters = train_iters
-        self.bsize = bsize   
+        self.bsize = bsize
 
     def sample_idxs(self, states, batch_size):
         states = copy.deepcopy(states)
